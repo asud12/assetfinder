@@ -12,9 +12,12 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"reflect"
+    "runtime"
 )
 
 func main() {
+
 	var subsOnly bool
 	flag.BoolVar(&subsOnly, "subs-only", false, "Only include subdomains of search domain")
 	flag.Parse()
@@ -33,13 +36,14 @@ func main() {
 		fetchThreatCrowd,
 		fetchCrtSh,
 		fetchFacebook,
-		//fetchWayback, // A little too slow :(
+		fetchWayback,
 		fetchVirusTotal,
 		fetchFindSubDomains,
 		fetchUrlscan,
 		fetchBufferOverrun,
 	}
 
+	
 	out := make(chan string)
 	var wg sync.WaitGroup
 
@@ -47,6 +51,7 @@ func main() {
 	rl := newRateLimiter(time.Second)
 
 	for sc.Scan() {
+
 		domain := strings.ToLower(sc.Text())
 
 		// call each of the source workers in a goroutine
@@ -54,10 +59,15 @@ func main() {
 			wg.Add(1)
 			fn := source
 
+			
+			// Get functionname e.g. fetchCertSoitter, split after "fetch"
+			source := strings.Split(GetFunctionName(fn), "fetch")
+			//fmt.Println("Source:", source[1])   
+
 			go func() {
 				defer wg.Done()
 
-				rl.Block(fmt.Sprintf("%#v", fn))
+				rl.Block(fmt.Sprintf("%#d", fn))
 				names, err := fn(domain)
 
 				if err != nil {
@@ -66,11 +76,48 @@ func main() {
 				}
 
 				for _, n := range names {
+					var b []byte
+
+
 					n = cleanDomain(n)
 					if subsOnly && !strings.HasSuffix(n, domain) {
 						continue
 					}
-					out <- n
+
+
+
+					/* 
+					* crt.sh sometimes returns multiple subdoimains split by  \n e.g. "az-sbx-bi.deloitte.co.uk\nsbx-bi.deloitte.co.uk". 
+					* This obv breaks the json encoding, so need this check. 
+					*/
+					if strings.Contains(n, "\n"){
+						parts := strings.Split(n, "\n")
+
+						for _, part := range parts {
+					
+							jsonResult := &Result{Host:part,Input:domain,Source:source[1]}
+							b, err = json.Marshal(jsonResult)
+							if err != nil {
+								fmt.Printf("Error: %s", err)
+								return;
+							}
+
+							out <- string(b)
+						} 					
+					} else {
+						jsonResult := &Result{Host:n,Input:domain,Source:source[1]}
+						b, err = json.Marshal(jsonResult)
+						if err != nil {
+							fmt.Printf("Error: %s", err)
+							return;
+						}
+
+						out <- string(b)
+					}
+
+
+					//out <- string(n)   // original
+
 				}
 			}()
 		}
@@ -95,7 +142,19 @@ func main() {
 	}
 }
 
+type Result struct {
+    Host string `json:"host"`
+	Input string `json:"input"`
+	Source string `json:"source"`
+}
+
+func GetFunctionName(i interface{}) string {
+    return runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
+}
+
 type fetchFn func(string) ([]string, error)
+
+
 
 func httpGet(url string) ([]byte, error) {
 	res, err := http.Get(url)
