@@ -9,4 +9,3 @@ Fork of assetfinder but outputs in the same format as subfinder:
 {"host":"ns.hackerone.com","input":"hackerone.com","source":"ThreatCrowd"}
 {"host":"mta-sts.forwarding.hackerone.com","input":"hackerone.com","source":"BufferOverrun"}
 {"host":"1.ns.hackerone.com","input":"hackerone.com","source":"ThreatCrowd"}```
-
