@@ -62,7 +62,6 @@ func main() {
 			
 			// Get functionname e.g. fetchCertSoitter, split after "fetch"
 			source := strings.Split(GetFunctionName(fn), "fetch")
-			//fmt.Println("Source:", source[1])   
 
 			go func() {
 				defer wg.Done()
@@ -91,12 +90,13 @@ func main() {
 					* This obv breaks the json encoding, so need this check. 
 					*/
 					if strings.Contains(n, "\n"){
+						
 						parts := strings.Split(n, "\n")
 
 						for _, part := range parts {
-					
 							jsonResult := &Result{Host:part,Input:domain,Source:source[1]}
 							b, err = json.Marshal(jsonResult)
+							
 							if err != nil {
 								fmt.Printf("Error: %s", err)
 								return;
@@ -114,10 +114,6 @@ func main() {
 
 						out <- string(b)
 					}
-
-
-					//out <- string(n)   // original
-
 				}
 			}()
 		}
